@@ -1,0 +1,5 @@
+{
+  "clientId": "051ca47de9dd42dabc8624ceac1144c1",
+  "clientSecret": "78cfd5208ca3494cab1b022b0cba40d7",
+  "redirectUri": "http://127.0.0.1:8888/callback"
+}

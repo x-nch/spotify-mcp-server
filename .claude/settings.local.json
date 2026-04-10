@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__spotify__toggleShuffle",
+      "mcp__spotify__createPlaylist",
+      "mcp__spotify__skipToNext"
+    ]
+  }
+}
