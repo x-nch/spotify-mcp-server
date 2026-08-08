@@ -76,3 +76,13 @@ Full detail lives in the skill: `~/.agents/skills/play-next/SKILL.md`.
 ## Secrets hygiene
 
 - `spotify-config.json` and `.opencode.json` (contains `AGENTMEMORY_SECRET`) are gitignored. Never commit tokens or secrets.
+
+## Remote host notes (192.168.1.10, user `x-nch`)
+
+This repo is also synced to `~/work/mcps/spotify-mcp-server` on 192.168.1.10. When opencode runs there, note:
+
+- **Host is the agentmemory server**: `192.168.1.10:3111`. `AGENTMEMORY_URL`/`AGENTMEMORY_SECRET` are in `.opencode.json` (present on host).
+- **Hardware/constraints**: RTX 3090 (24GB VRAM), 48GB RAM — `instructions.md` in this repo mandates STRICT RESOURCE CONSTRAINT MODE (local-first via OpenCode, minimize tokens, code-first, <200-line responses). Honor it.
+- **No `node_modules`/`build` on host**: run `npm install && npm run build` first. `src/` is present and editable; `spotify-config.json` (tokens) and `.opencode.json` (secrets) are synced.
+- **Keep local (macOS) and host in sync**: `rsync -avz --delete` from the local repo, excluding `node_modules build package-lock.json spotify-config.json .opencode.json .DS_Store`. Push code changes back via git/rsync after edits.
+- **Anything agentmemory-related this repo does must use the host's own server** — local server is the same instance (192.168.1.10:3111) from both machines.
