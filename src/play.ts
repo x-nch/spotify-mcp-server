@@ -1,6 +1,10 @@
 import { z } from 'zod';
 import type { SpotifyHandlerExtra, tool } from './types.js';
-import { handleSpotifyRequest, spotifyApiRequest } from './utils.js';
+import {
+  createSpotifyApi,
+  handleSpotifyRequest,
+  spotifyApiRequest,
+} from './utils.js';
 
 const playMusic: tool<{
   uri: z.ZodOptional<z.ZodString>;
@@ -45,31 +49,42 @@ const playMusic: tool<{
       spotifyUri = `spotify:${type}:${id}`;
     }
 
-    await handleSpotifyRequest(async (spotifyApi) => {
-      const device = deviceId || '';
+    const deviceParam = deviceId ? `?device_id=${deviceId}` : '';
 
-      if (!spotifyUri) {
-        await spotifyApi.player.startResumePlayback(device);
-        return;
+    try {
+      await createSpotifyApi();
+
+      let body: Record<string, unknown> | undefined;
+      if (spotifyUri) {
+        if (type === 'track') {
+          body = { uris: [spotifyUri] };
+        } else {
+          body = { context_uri: spotifyUri };
+        }
       }
 
-      if (type === 'track') {
-        await spotifyApi.player.startResumePlayback(device, undefined, [
-          spotifyUri,
-        ]);
-      } else {
-        await spotifyApi.player.startResumePlayback(device, spotifyUri);
-      }
-    });
+      await spotifyApiRequest(`/me/player/play${deviceParam}`, 'PUT', body);
 
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `Started playing ${type || 'music'} ${id ? `(ID: ${id})` : ''}`,
-        },
-      ],
-    };
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Started playing ${type || 'music'} ${id ? `(ID: ${id})` : ''}`,
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Error starting playback: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          },
+        ],
+      };
+    }
   },
 };
 
@@ -86,19 +101,32 @@ const pausePlayback: tool<{
   },
   handler: async (args, _extra: SpotifyHandlerExtra) => {
     const { deviceId } = args;
+    const deviceParam = deviceId ? `?device_id=${deviceId}` : '';
 
-    await handleSpotifyRequest(async (spotifyApi) => {
-      await spotifyApi.player.pausePlayback(deviceId || '');
-    });
+    try {
+      await createSpotifyApi();
+      await spotifyApiRequest(`/me/player/pause${deviceParam}`, 'PUT');
 
-    return {
-      content: [
-        {
-          type: 'text',
-          text: 'Playback paused',
-        },
-      ],
-    };
+      return {
+        content: [
+          {
+            type: 'text',
+            text: 'Playback paused',
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Error pausing playback: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          },
+        ],
+      };
+    }
   },
 };
 
@@ -116,6 +144,7 @@ const togglePlayPause: tool<{
   },
   handler: async (args, _extra: SpotifyHandlerExtra) => {
     const { deviceId } = args;
+    const deviceParam = deviceId ? `?device_id=${deviceId}` : '';
 
     try {
       const playback = await handleSpotifyRequest(async (spotifyApi) => {
@@ -133,10 +162,9 @@ const togglePlayPause: tool<{
         };
       }
 
+      await createSpotifyApi();
       if (playback.is_playing) {
-        await handleSpotifyRequest(async (spotifyApi) => {
-          await spotifyApi.player.pausePlayback(deviceId || '');
-        });
+        await spotifyApiRequest(`/me/player/pause${deviceParam}`, 'PUT');
         return {
           content: [
             {
@@ -147,9 +175,7 @@ const togglePlayPause: tool<{
         };
       }
 
-      await handleSpotifyRequest(async (spotifyApi) => {
-        await spotifyApi.player.startResumePlayback(deviceId || '');
-      });
+      await spotifyApiRequest(`/me/player/play${deviceParam}`, 'PUT');
       return {
         content: [
           {
@@ -353,19 +379,32 @@ const resumePlayback: tool<{
   },
   handler: async (args, _extra: SpotifyHandlerExtra) => {
     const { deviceId } = args;
+    const deviceParam = deviceId ? `?device_id=${deviceId}` : '';
 
-    await handleSpotifyRequest(async (spotifyApi) => {
-      await spotifyApi.player.startResumePlayback(deviceId || '');
-    });
+    try {
+      await createSpotifyApi();
+      await spotifyApiRequest(`/me/player/play${deviceParam}`, 'PUT');
 
-    return {
-      content: [
-        {
-          type: 'text',
-          text: 'Playback resumed',
-        },
-      ],
-    };
+      return {
+        content: [
+          {
+            type: 'text',
+            text: 'Playback resumed',
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Error resuming playback: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          },
+        ],
+      };
+    }
   },
 };
 
@@ -412,21 +451,35 @@ const addToQueue: tool<{
       };
     }
 
-    await handleSpotifyRequest(async (spotifyApi) => {
-      await spotifyApi.player.addItemToPlaybackQueue(
-        spotifyUri,
-        deviceId || '',
-      );
-    });
+    const params = new URLSearchParams({ uri: spotifyUri });
+    if (deviceId) {
+      params.append('device_id', deviceId);
+    }
 
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `Added item ${spotifyUri} to queue`,
-        },
-      ],
-    };
+    try {
+      await createSpotifyApi();
+      await spotifyApiRequest(`/me/player/queue?${params}`, 'POST');
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Added item ${spotifyUri} to queue`,
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Error adding item to queue: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          },
+        ],
+      };
+    }
   },
 };
 

@@ -91,7 +91,7 @@ export async function createSpotifyApi(): Promise<SpotifyApi> {
 
     cachedSpotifyApi = SpotifyApi.withAccessToken(config.clientId, accessToken);
 
-    // Patch: Use /items instead of /tracks (SDK bug)
+    // Patch: Use /items instead of /tracks (SDK bug — Feb 2026 Web API change)
     cachedSpotifyApi.playlists.getPlaylistItems = function (
       playlistId: string,
       market?: string,
@@ -108,6 +108,40 @@ export async function createSpotifyApi(): Promise<SpotifyApi> {
         additional_types: additionalTypes?.join(','),
       });
       return (this as any).getRequest(`playlists/${playlistId}/items${params}`);
+    };
+
+    cachedSpotifyApi.playlists.addItemsToPlaylist = async function (
+      playlistId: string,
+      uris?: string[],
+      position?: number,
+    ) {
+      await (this as any).postRequest(`playlists/${playlistId}/items`, {
+        position,
+        uris,
+      });
+    };
+
+    cachedSpotifyApi.playlists.removeItemsFromPlaylist = async function (
+      playlistId: string,
+      request: { tracks: Array<{ uri: string }>; snapshot_id?: string },
+    ) {
+      await (this as any).deleteRequest(`playlists/${playlistId}/items`, {
+        items: request.tracks,
+        snapshot_id: request.snapshot_id,
+      });
+    };
+
+    cachedSpotifyApi.playlists.updatePlaylistItems = function (
+      playlistId: string,
+      request: {
+        uris?: string[];
+        range_start?: number;
+        insert_before?: number;
+        range_length?: number;
+        snapshot_id?: string;
+      },
+    ) {
+      return (this as any).putRequest(`playlists/${playlistId}/items`, request);
     };
 
     return cachedSpotifyApi;

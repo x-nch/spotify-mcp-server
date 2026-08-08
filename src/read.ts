@@ -35,13 +35,13 @@ const searchSpotify: tool<{
     limit: z
       .number()
       .min(1)
-      .max(50)
+      .max(10)
       .optional()
-      .describe('Maximum number of results to return (10-50)'),
+      .describe('Maximum number of results to return (1-10)'),
   },
   handler: async (args, _extra: SpotifyHandlerExtra) => {
     const { query, type, limit } = args;
-    const limitValue = limit ?? 10;
+    const limitValue = Math.min(limit ?? 10, 10);
 
     try {
       const results = await handleSpotifyRequest(async (spotifyApi) => {
@@ -229,7 +229,8 @@ const getMyPlaylists: tool<{
 
     const formattedPlaylists = playlists.items
       .map((playlist, i) => {
-        const tracksTotal = playlist.tracks?.total ? playlist.tracks.total : 0;
+        const tracksTotal =
+          (playlist as any).items?.total ?? playlist.tracks?.total ?? 0;
         return `${i + 1}. "${playlist.name}" (${tracksTotal} tracks) - ID: ${
           playlist.id
         }`;
@@ -294,7 +295,7 @@ const getPlaylistTracks: tool<{
 
     const formattedTracks = playlistTracks.items
       .map((item, i) => {
-        const { track } = item;
+        const track = (item as any).item ?? item.track;
         if (!track) return `${offset + i + 1}. [Removed track]`;
 
         if (isTrack(track)) {

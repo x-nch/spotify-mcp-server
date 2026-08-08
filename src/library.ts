@@ -1,4 +1,4 @@
-import type { Market, MaxInt } from '@spotify/web-api-ts-sdk';
+import type { MaxInt } from '@spotify/web-api-ts-sdk';
 import { z } from 'zod';
 import type { SpotifyHandlerExtra, SpotifyTrack, tool } from './types.js';
 import { formatDuration, handleSpotifyRequest } from './utils.js';
@@ -293,25 +293,37 @@ const getArtistTopTracks: tool<{
   limit: z.ZodOptional<z.ZodNumber>;
 }> = {
   name: 'getArtistTopTracks',
-  description: 'Get the top tracks for an artist',
+  description:
+    'Get the top tracks for an artist. Uses artist-scoped search ranked by popularity, as Spotify removed the original /artists/{id}/top-tracks endpoint (Feb 2026 API changes)',
   schema: {
     artistId: z.string().describe('The Spotify artist ID'),
     limit: z
       .number()
       .min(1)
-      .max(50)
+      .max(10)
       .optional()
-      .describe('Maximum number of tracks to return (1-50)'),
+      .describe(
+        'Maximum number of tracks to return (1-10, search caps results at 10)',
+      ),
   },
   handler: async (args, _extra: SpotifyHandlerExtra) => {
     const { artistId, limit = 10 } = args;
 
     try {
-      const topTracks = await handleSpotifyRequest(async (spotifyApi) => {
-        return await spotifyApi.artists.topTracks(artistId, 'US' as Market);
-      });
+      const { artist, tracks } = await handleSpotifyRequest(
+        async (spotifyApi) => {
+          const artist = await spotifyApi.artists.get(artistId);
+          const searchResults = await spotifyApi.search(
+            `artist:${artist.name}`,
+            ['track'],
+            undefined,
+            10 as MaxInt<50>,
+          );
+          return { artist, tracks: searchResults.tracks?.items ?? [] };
+        },
+      );
 
-      if (!topTracks?.tracks?.length) {
+      if (tracks.length === 0) {
         return {
           content: [
             {
@@ -322,9 +334,27 @@ const getArtistTopTracks: tool<{
         };
       }
 
-      const tracksToShow: any[] = topTracks.tracks.slice(0, limit);
-      const formattedTracks = tracksToShow
-        .map((track, i) => {
+      const artistTracks = tracks.filter((track: any) =>
+        track.artists?.some((a: any) => a.id === artistId),
+      );
+      if (artistTracks.length === 0) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `No top tracks found for artist "${artist.name}"`,
+            },
+          ],
+        };
+      }
+
+      const ranked = artistTracks
+        .slice()
+        .sort((a: any, b: any) => (b.popularity ?? 0) - (a.popularity ?? 0))
+        .slice(0, limit);
+
+      const formattedTracks = ranked
+        .map((track: any, i: number) => {
           if (!isTrack(track)) return `${i + 1}. Unknown track`;
 
           const artists = track.artists.map((a: any) => a.name).join(', ');
@@ -341,7 +371,7 @@ const getArtistTopTracks: tool<{
         content: [
           {
             type: 'text',
-            text: `# Top Tracks for Artist\n\n${formattedTracks}`,
+            text: `# Top Tracks for ${artist.name}\n\n${formattedTracks}`,
           },
         ],
       };
