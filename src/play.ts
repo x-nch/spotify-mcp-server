@@ -102,6 +102,77 @@ const pausePlayback: tool<{
   },
 };
 
+const togglePlayPause: tool<{
+  deviceId: z.ZodOptional<z.ZodString>;
+}> = {
+  name: 'togglePlayPause',
+  description:
+    'Toggle Spotify playback between playing and paused based on the current state',
+  schema: {
+    deviceId: z
+      .string()
+      .optional()
+      .describe('The Spotify device ID to toggle playback on'),
+  },
+  handler: async (args, _extra: SpotifyHandlerExtra) => {
+    const { deviceId } = args;
+
+    try {
+      const playback = await handleSpotifyRequest(async (spotifyApi) => {
+        return await spotifyApi.player.getPlaybackState();
+      });
+
+      if (!playback?.device) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: 'No active device found. Make sure Spotify is open and playing on a device.',
+            },
+          ],
+        };
+      }
+
+      if (playback.is_playing) {
+        await handleSpotifyRequest(async (spotifyApi) => {
+          await spotifyApi.player.pausePlayback(deviceId || '');
+        });
+        return {
+          content: [
+            {
+              type: 'text',
+              text: 'Playback paused',
+            },
+          ],
+        };
+      }
+
+      await handleSpotifyRequest(async (spotifyApi) => {
+        await spotifyApi.player.startResumePlayback(deviceId || '');
+      });
+      return {
+        content: [
+          {
+            type: 'text',
+            text: 'Playback resumed',
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Error toggling playback: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          },
+        ],
+      };
+    }
+  },
+};
+
 const skipToNext: tool<{
   deviceId: z.ZodOptional<z.ZodString>;
 }> = {
@@ -545,6 +616,7 @@ const adjustVolume: tool<{
 export const playTools = [
   playMusic,
   pausePlayback,
+  togglePlayPause,
   skipToNext,
   skipToPrevious,
   createPlaylist,

@@ -3,6 +3,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { albumTools } from './albums.js';
 import { deviceTools } from './devices.js';
 import { libraryTools } from './library.js';
+import { lyricsTools } from './lyrics.js';
 import { playTools } from './play.js';
 import { playbackTools } from './playback.js';
 import { playlistTools } from './playlist.js';
@@ -21,6 +22,7 @@ const server = new McpServer({
   ...playlistTools,
   ...playbackTools,
   ...libraryTools,
+  ...lyricsTools,
   ...smartPlaylistTools,
   ...deviceTools,
 ].forEach((tool) => {

@@ -90,6 +90,26 @@ export async function createSpotifyApi(): Promise<SpotifyApi> {
     };
 
     cachedSpotifyApi = SpotifyApi.withAccessToken(config.clientId, accessToken);
+
+    // Patch: Use /items instead of /tracks (SDK bug)
+    cachedSpotifyApi.playlists.getPlaylistItems = function (
+      playlistId: string,
+      market?: string,
+      fields?: string,
+      limit?: number,
+      offset?: number,
+      additionalTypes?: string[],
+    ) {
+      const params = (this as any).paramsFor({
+        market,
+        fields,
+        limit,
+        offset,
+        additional_types: additionalTypes?.join(','),
+      });
+      return (this as any).getRequest(`playlists/${playlistId}/items${params}`);
+    };
+
     return cachedSpotifyApi;
   }
 

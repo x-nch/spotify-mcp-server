@@ -157,6 +157,9 @@ const getNowPlaying: tool<Record<string, never>> = {
       const progress = formatDuration(playback.progress_ms || 0);
       const isPlaying = playback.is_playing;
 
+      const albumImages = item.album.images ?? [];
+      const artUrl = albumImages.length > 0 ? albumImages[0].url : null;
+
       const device = playback.device;
       const deviceInfo = device
         ? `${device.name} (${device.type})`
@@ -172,16 +175,7 @@ const getNowPlaying: tool<Record<string, never>> = {
         content: [
           {
             type: 'text',
-            text:
-              `# Currently ${isPlaying ? 'Playing' : 'Paused'}\n\n` +
-              `**Track**: "${item.name}"\n` +
-              `**Artist**: ${artists}\n` +
-              `**Album**: ${album}\n` +
-              `**Progress**: ${progress} / ${duration}\n` +
-              `**ID**: ${item.id}\n\n` +
-              `**Device**: ${deviceInfo}\n` +
-              `**Volume**: ${volume}\n` +
-              `**Shuffle**: ${shuffle} | **Repeat**: ${repeat}`,
+            text: `# Currently ${isPlaying ? 'Playing' : 'Paused'}\n\n**Track**: "${item.name}"\n**Artist**: ${artists}\n**Album**: ${album}\n**Progress**: ${progress} / ${duration}\n**ID**: ${item.id}\n${artUrl ? `**Album Art**: ${artUrl}\n` : ''}\n**Device**: ${deviceInfo}\n**Volume**: ${volume}\n**Shuffle**: ${shuffle} | **Repeat**: ${repeat}`,
           },
         ],
       };
