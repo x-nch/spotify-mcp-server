@@ -1,0 +1,8 @@
+# Spotify MCP access-token maintenance
+# Refreshes the access token ~10 min before expiry; verifies API connectivity.
+# Runs every 30 minutes.
+
+SHELL=/bin/zsh
+PATH=/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin
+
+*/30 * * * * . $HOME/.zprofile; node /Users/xnch/work/mcps/spotify-mcp-server/scripts/maintain.mjs >> /Users/xnch/work/mcps/spotify-mcp-server/scripts/maintain.log 2>&1

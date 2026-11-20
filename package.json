@@ -1,22 +1,38 @@
 {
+  "name": "@xnch/spotify-mcp-plugin",
+  "version": "2.0.0",
+  "description": "OpenCode plugin + stdio MCP server for Spotify control and playlist management",
   "type": "module",
-  "name": "spotify-mcp-server",
-  "version": "1.0.0",
-  "main": "index.js",
+  "main": "build/plugin.js",
   "bin": {
-    "spotify-mcp": "./build/index.js"
+    "spotify-mcp": "build/cli.js"
   },
+  "exports": {
+    ".": "./build/plugin.js",
+    "./mcp-server": "./build/index.js",
+    "./cli": "./build/cli.js"
+  },
+  "files": ["build", "scripts", "cron", "src"],
   "scripts": {
-    "build": "tsc && node -e \"require('fs').chmodSync('build/index.js', '755')\"",
-    "auth": "tsc && node build/auth.js",
+    "build": "tsc && node -e \"require('fs').chmodSync('build/index.js', '755'); require('fs').chmodSync('build/cli.js', '755')\"",
+    "auth": "node build/cli.js auth",
+    "maintain": "node build/cli.js maintain",
+    "install": "node build/cli.js install",
     "lint": "biome check --diagnostic-level=warn --error-on-warnings",
     "lint:fix": "biome check --write --unsafe --organize-imports-enabled=true",
     "typecheck": "tsc --noEmit"
   },
-  "files": ["build"],
-  "keywords": [],
-  "author": "Marcel Marais",
-  "description": "A Model Context Protocol server for Spotify integration",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/x-nch/spotify-mcp-server.git"
+  },
+  "author": "Marcel Marais (original) · x-nch (fork & plugin)",
+  "contributors": [
+    "Marcel Marais <https://github.com/MarcelMarais>",
+    "x-nch <https://github.com/x-nch>"
+  ],
+  "license": "MIT",
+  "keywords": ["spotify", "mcp", "opencode", "plugin", "playlist", "playback"],
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.10.1",
     "@spotify/web-api-ts-sdk": "^1.2.0",

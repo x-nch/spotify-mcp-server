@@ -427,3 +427,13 @@ To set up your MCP correctly with Cline ensure you have the following file confi
 ```
 
 You can add additional tools to the auto approval array to run the tools without intervention.
+
+## Credits
+
+This project is a fork of the Spotify MCP Server originally created by **Marcel Marais**.
+
+- **Original**: [Marcel Marais' spotify-mcp-server](https://github.com/MarcelMarais/spotify-mcp-server)
+- **Fork & OpenCode plugin**: [x-nch/spotify-mcp-server](https://github.com/x-nch/spotify-mcp-server) — packaged as `@xnch/spotify-mcp-plugin` with auto-injection, maintenance cron, and playlist skills.
+
+The original author is credited in `package.json` under `author` and `contributors`.
+

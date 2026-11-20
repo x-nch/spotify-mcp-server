@@ -47,13 +47,20 @@ export function saveSpotifyConfig(config: SpotifyConfig): void {
 }
 
 let cachedSpotifyApi: SpotifyApi | null = null;
+let cachedExpiresAt: number | null = null;
 
 export async function createSpotifyApi(): Promise<SpotifyApi> {
   const config = loadSpotifyConfig();
+  const now = Date.now();
 
   if (config.accessToken && config.refreshToken) {
-    const now = Date.now();
     const shouldRefresh = !config.expiresAt || config.expiresAt <= now;
+
+    // Rebuild the cached API instance when the on-disk token was replaced
+    // externally (e.g. a fresh `npm run auth`) so a long-lived process never
+    // keeps serving an access token it obtained days ago.
+    const configChanged =
+      cachedExpiresAt !== null && cachedExpiresAt !== config.expiresAt;
 
     if (shouldRefresh) {
       console.log(
@@ -68,12 +75,18 @@ export async function createSpotifyApi(): Promise<SpotifyApi> {
 
         // Clear cached API instance to force recreation with new token
         cachedSpotifyApi = null;
+        cachedExpiresAt = null;
       } catch (error) {
         console.error('Failed to refresh token:', error);
         throw new Error(
           'Failed to refresh access token. Please run "npm run auth" to re-authenticate.',
         );
       }
+    } else if (configChanged) {
+      // On-disk token was replaced without going through refresh (e.g. re-auth).
+      // Recreate the instance so it uses the current access token.
+      cachedSpotifyApi = null;
+      cachedExpiresAt = null;
     }
 
     if (cachedSpotifyApi) {
@@ -90,6 +103,7 @@ export async function createSpotifyApi(): Promise<SpotifyApi> {
     };
 
     cachedSpotifyApi = SpotifyApi.withAccessToken(config.clientId, accessToken);
+    cachedExpiresAt = config.expiresAt ?? null;
 
     // Patch: Use /items instead of /tracks (SDK bug — Feb 2026 Web API change)
     cachedSpotifyApi.playlists.getPlaylistItems = function (
@@ -168,7 +182,7 @@ function generateRandomString(length: number): string {
     .join('');
 }
 
-function base64Encode(str: string): string {
+export function base64Encode(str: string): string {
   return Buffer.from(str).toString('base64');
 }
 
@@ -210,9 +224,11 @@ async function exchangeCodeForToken(
   };
 }
 
-async function refreshAccessToken(
-  config: SpotifyConfig,
-): Promise<{ access_token: string; expires_in: number }> {
+export async function refreshAccessToken(config: SpotifyConfig): Promise<{
+  access_token: string;
+  expires_in: number;
+  refresh_token?: string;
+}> {
   if (!config.refreshToken) {
     throw new Error('No refresh token available');
   }
@@ -405,23 +421,47 @@ export function formatDuration(ms: number): string {
 export async function handleSpotifyRequest<T>(
   action: (spotifyApi: SpotifyApi) => Promise<T>,
 ): Promise<T> {
-  try {
-    const spotifyApi = await createSpotifyApi();
-    return await action(spotifyApi);
-  } catch (error) {
-    if (error instanceof Error) {
-      const isJsonParseError =
-        error.message.includes('Unexpected token') ||
-        error.message.includes('Unexpected non-whitespace character') ||
-        error.message.includes('Exponent part is missing a number in JSON');
-      if (isJsonParseError) {
-        throw new Error(
-          'Operation completed but received unexpected response format from Spotify',
-        );
+  let attempts = 0;
+  const maxAttempts = 3;
+  const backoffMs = 800;
+  while (attempts < maxAttempts) {
+    attempts += 1;
+    try {
+      const spotifyApi = await createSpotifyApi();
+      return await action(spotifyApi);
+    } catch (error) {
+      if (error instanceof Error) {
+        const isJsonParseError =
+          error.message.includes('Unexpected token') ||
+          error.message.includes('Unexpected non-whitespace character') ||
+          error.message.includes('Exponent part is missing a number in JSON');
+        if (isJsonParseError) {
+          throw new Error(
+            'Operation completed but received unexpected response format from Spotify',
+          );
+        }
       }
+      if (attempts >= maxAttempts) {
+        throw error;
+      }
+      if (
+        error instanceof Error &&
+        /401|403|invalid.*token|expired|refresh/i.test(error.message)
+      ) {
+        // Force a fresh instance so the next attempt uses a refreshed token.
+        // This keeps long-lived processes self-healing without manual re-auth.
+        cachedSpotifyApi = null;
+        cachedExpiresAt = null;
+        // Exponential backoff before retrying.
+        await new Promise((resolve) =>
+          setTimeout(resolve, backoffMs * attempts),
+        );
+        continue;
+      }
+      throw error;
     }
-    throw error;
   }
+  throw new Error('Unexpected end of retry loop');
 }
 
 export async function spotifyApiRequest(
@@ -475,5 +515,29 @@ export async function spotifyApiRequest(
     return JSON.parse(text);
   } catch {
     return text;
+  }
+}
+
+export async function healthCheck(): Promise<{
+  ok: boolean;
+  user?: { id: string; display_name: string; product: string };
+  error?: string;
+}> {
+  try {
+    const api = await createSpotifyApi();
+    const me = await api.currentUser.profile();
+    return {
+      ok: true,
+      user: {
+        id: me.id,
+        display_name: me.display_name ?? 'Unknown',
+        product: me.product ?? 'Unknown',
+      },
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
   }
 }

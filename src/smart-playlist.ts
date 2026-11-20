@@ -1,7 +1,11 @@
 import type { MaxInt } from '@spotify/web-api-ts-sdk';
 import { z } from 'zod';
 import type { SpotifyHandlerExtra, SpotifyTrack, tool } from './types.js';
-import { formatDuration, handleSpotifyRequest } from './utils.js';
+import {
+  formatDuration,
+  handleSpotifyRequest,
+  spotifyApiRequest,
+} from './utils.js';
 
 function isTrack(item: any): item is SpotifyTrack {
   return (
@@ -46,24 +50,24 @@ const createPlaylistFromTracks: tool<{
     }
 
     try {
-      const result = await handleSpotifyRequest(async (spotifyApi) => {
-        const me = await spotifyApi.currentUser.profile();
-
-        const playlist = await spotifyApi.playlists.createPlaylist(me.id, {
+      const result = await handleSpotifyRequest(async (_spotifyApi) => {
+        // Spotify Feb 2026 migration: POST /users/{id}/playlists returns 403.
+        // Use POST /me/playlists instead (verified working).
+        const created = await spotifyApiRequest('/me/playlists', 'POST', {
           name,
           description: description || '',
+          public: false,
         });
 
         const trackUrisWithPrefix = trackUris.map((uri) =>
           uri.startsWith('spotify:track:') ? uri : `spotify:track:${uri}`,
         );
 
-        await spotifyApi.playlists.addItemsToPlaylist(
-          playlist.id,
-          trackUrisWithPrefix,
-        );
+        await spotifyApiRequest(`/playlists/${created.id}/items`, 'POST', {
+          uris: trackUrisWithPrefix,
+        });
 
-        return playlist;
+        return created;
       });
 
       if (!result) {
